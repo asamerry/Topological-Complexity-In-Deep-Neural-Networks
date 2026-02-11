@@ -1,0 +1,639 @@
+---
+output:
+  pdf_document:
+    latex_engine: pdflatex
+header-includes: 
+  - \usepackage{tikz}
+  - \usepackage{pgfplots}
+  - \usepackage{stmaryrd}
+  - \pgfplotsset{compat=1.18}
+---
+
+```{r setup, echo=FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+\newcommand{\F}{\mathbb{F}}
+\newcommand{\R}{\mathbb{R}}
+\renewcommand{\epsilon}{\varepsilon}
+\newcommand{\VR}{\text{VR}}
+
+\newenvironment{defn}[1]{\textbf{Definition.} (#1) \\}{}
+
+\begin{titlepage}
+\begin{center}
+
+  \vspace*{1in}
+
+  \Large \textbf{Topological Complexity in Deep Neural Networks}
+
+  \vspace{5.5in}
+
+  \large Jake Merry \\
+  \large Pstat 231 - Statistical Machine Learning \\
+  \large Yu Guo \\
+  \large December, 10 2025
+
+\end{center}
+\end{titlepage}
+
+\pagebreak
+
+
+# 1 Introduction and Motivation 
+
+
+
+In this paper, after giving a brief exposition on the topology and homology concepts necessary to understand these contributions, we will describe the process taken to conduct such experiments and we will provide results from our own experiments to validate these conclusion. 
+
+
+
+
+
+
+
+
+
+# 2 Background
+
+### 2.1 Topological Complexity
+
+Let $M \subset \R^d$ be an $d$-dimensional topological manifold and fix $k \in \{ 0, 1, \dots, d-1 \}$. The tool we select for the analysis of our manifold is the Betti numbers, $\beta(M) = (\beta_0(M), \beta_1(M), \dots, \beta_{d-1}(M))$, which are a topological invariant that will help us track the topology of our manifold as it passes through the layers of a trained network. We will formally define Betti numbers soon, but roughly speaking, the $k$-th Betti number gives the number of $k$-dimensional holes of $M$. 
+
+We define the topological complexity, $\omega$, of $M$ as
+$$\omega(M) = \sum_{k=0}^{d-1} \beta_k.$$
+Simply, $\omega(M)$ gives the total number of holes in the manifold $M$ and we can think of a manifold as being more complex the more holes it has. Our goal here is to observe the changes in Betti numbers as it passes through each layer, $\nu_j$, of an $l$-layer neural network:
+$$\beta(M) \to \beta(\nu_1(M)) \to \dots \to \beta(\nu_l(M)).$$
+
+Know that in practice, we do not have access to the true underlying manifold of our data set and must estimate the Betti numbers using a point-cloud data set. To do this we will make use of tools from persistent homology, described in the coming sections. Persistent homology is a now common tool in topological data analysis, but note that our goal in this paper differs from that of traditional topological data analysis in that the latter is primarily concerned with studying the shape of the data set itself, whereas we are concerned with manipulating the shape of the data as it passes through our model. 
+
+
+### 2.2 Homology and Simplicial Homology
+
+Homology is a branch of algebraic topology in which we study the homology of a mathematical structure called a chain complex. This results in a set of Abelian groups called homology groups. The branch of homology itself is vast and complex, so we here provided a simplified exposition on the subject that will work specifically for our own purposes. We will work over the field $\F_2 = \{ 0, 1 \}$. For the $\F_2$-vector spaces $C_0, C_1, \dots, C_d$, we define the linear boundary operators $\partial_k : C_k \to C_{k-1}$ satisfying $\partial_k \circ \partial_{k+1} = 0$ for all $k \in \{ 0, 1, \dots, d \}$. We can then form the chain complex
+\begin{center}
+\begin{tikzpicture}[node distance=1.5cm, auto]
+	% Define nodes
+	\node (01) {$0$};
+	\node (cdk1) [right of=01] {$C_d$};
+	\node (cd1k1) [right of=cdk1] {$C_{d-1}$};
+	\node (cd2k1) [right of=cd1k1] {$\dots$};
+	\node (ckk1) [right of=cd2k1] {$C_k$};
+	\node (ck1k1) [right of=ckk1] {$C_{k-1}$};
+	\node (ck2k1) [right of=ck1k1] {$\dots$};
+	\node (c1k1) [right of=ck2k1] {$C_1$};
+	\node (c0k1) [right of=c1k1] {$C_0$};
+	\node (012) [right of=c0k1] {$0$};
+
+	% Draw edges
+	\path[->]
+	(01) edge node {$\partial_{d+1}$} (cdk1)
+	(cdk1) edge node {$\partial_d$} (cd1k1)
+	(cd1k1) edge node {$\partial_{d-1}$} (cd2k1)
+	(cd2k1) edge node {$\partial_{k+1}$} (ckk1)
+	(ckk1) edge node {$\partial_k$} (ck1k1)
+	(ck1k1) edge node {$\partial_{k+1}$} (ck2k1)
+	(ck2k1) edge node {$\partial_2$} (c1k1)
+	(c1k1) edge node {$\partial_1$} (c0k1)
+	(c0k1) edge node {$\partial_0$} (012);
+\end{tikzpicture}
+\end{center}
+The $k$-th homology group of this chain complex is the quotient vector space $H_k := \text{ker}(\partial_k) / \text{im}(\partial_{k+1})$ and the elements of $H_k$ are called homology classes. Then, we can define the $k$-th Betti number of the manifold $M$ as $\beta_k := \dim(H_k) = \text{nullity}(\partial_k) - \text{rank}(\partial_{k+1})$. 
+
+With this as motivation, we aim to define vector spaces such as those described previously. To do this we introduce some concepts from simplicial homology. Take an abstract simplicial complex $K$ and define the set $K^{(k)}$ of all $k$-dimensional simplicies in $K$. We then define the $\F_2$-vector spaces $C_k(K)$ by the basis $K^{(k)}$. Here, elements of $C_k(K)$ take the form
+$$\sum_{j : \sigma_j \in K^{(k)}} n_j\sigma_j, \quad n_j \in \F_2.$$
+On a $k$-simplex, $\sigma = [v_0, \dots, v_k]$ the boundary operators are defined by
+$$\partial_k\sigma = \sum_{j=0}^k [v_0, \dots, \hat v_j, \dots, v_k],$$
+where $\hat v_j$ signifies that $v_j$ is missing from the simplex. Then, on $C_k(K)$, we have that
+$$\partial_k\left( \sum_{j : \sigma_j \in K^{(k)}} n_j\sigma_j \right) = \sum_{j : \sigma_j \in K^{(k)}} n_j\partial_k\sigma_j.$$
+
+It is worth noting here that working over $\F_2$ forces the relation $H_k(K) \cong \F_2^{\beta_k}$. 
+
+Now, given any two abstract simplicial complexes, $K_1$ and $K_2$, we can define a simplicial map $f : K_1^{(0)} \to K_2^{(0)}$ by $f[v_0, \dots, v_k] = [f(v_0), \dots, f(v_k)]$. Simplicial mappings induce linear mappings $f : C_k(K_1) \to C_k(K_2)$, defined by 
+$$f\left( \sum_{j : \sigma_j \in K^{(k)}} n_j\sigma_j \right) = \sum_{j : \sigma_j \in K^{(k)}} n_jf(\sigma_j),$$
+and these linear mappings induce a map between homologies, $H_k(f) : H_k(K_1) \to H_k(K_2)$ by
+$$f\left( \left\llbracket \sum_{j : \sigma_j \in K^{(k)}} n_j\sigma_j \right\rrbracket \right) = \left\llbracket \sum_{j : \sigma_j \in K^{(k)}} n_j f(\sigma_j) \right\rrbracket, \qquad \forall k \in \{ 0, 1, \dots, d+1 \}.$$
+Composing two simplicial maps gives another simplicial map, following the property of functorality, $H_k(g \circ f) = H_k(g) \circ H_k(f)$. 
+
+Hence, given a point cloud data set $X \subset M$, we wish to construct a simplicial complex $K$ with $K^{(0)} = X$. One way to do this, and the way most adept for this paper, is the Vietoris-Rips complex. Letting $\delta$ be a metric on $\R^d$, the Vietoris-Rips complex at scale $\epsilon > 0$ on $X$ is defined to be
+$$\VR_\epsilon(X) = \{ [x_0, \dots, x_k] : \delta(x_i, x_j) \leq 2\varepsilon, \  i, j = 0, 1, \dots, k, \ x_0, \dots, x_k \in X, \ k = 0, 1, \dots, n \}.$$
+Our cloud point data set has an underlying topological manifold, i.e. $X \subset M$. If the data set is dense enough, the topology $\VR_\epsilon(X)$, at a sufficiently small scale, recovers the true topology of the underlying manifold. 
+
+Note that the definition of the Vietoris-Rips complex depends on the choice of the scale $\epsilon$ and the metric $\delta$. The best choice of $\delta$ is not the Euclidean distance, but rather the geodesic distance on $M$ which we will estimate later. To estimate the proper scale, $\epsilon$, we introduce the topic of persistent homology. 
+
+
+### 2.3 Persistent Homology
+
+Homology classes are sensitive to perturbations in data which affects the estimation of Betti numbers. Persistent homology addresses this issue by finding features of the data set that are robust to noise. To do this, we incorporate the scale, $\epsilon > 0$, into our homology calculations. For instance, when $\epsilon = 0$, we have that $\VR_0(X) = \{ [x] : x \in X \}$, $\beta_0 = |X|$, and $\beta_k = 0$ for all $k > 0$, i.e. $\epsilon = 0$ overfits the data set. As well, as $\epsilon \to \infty$, all of our vertices become connected and we are left with a single contractible space. Hence, the topologies at both extrema are trivial and we seek to find a balance somewhere inbetween. This is done using persistent barcodes. 
+
+In short, persistent barcodes are intervals $[\epsilon, \epsilon')$, where $\epsilon$ is the scale at which a feature appears and $\epsilon'$ is the scale at which the same feature disappears. We call the length of the interval the persistence of the feature, describing the prominence of the feature. For our purposes, the features that we will be interested in are the the homology classes in the $k$-th homology group. This allows us to identify an optimal scale $\epsilon_*$ at which all prominent features are present in the complex. To simplify matters, we will fix a finite, ordered list $\epsilon_0 < \epsilon_1 < \dots < \epsilon_m$ from which we will decide our optimal $\epsilon_*$, but this list could be as large as we like. 
+
+We define $K_j = \VR_{\epsilon_j}(X)$ for all $j = 0, 1, \dots, m$. Then, 
+$$K_0 \subset K_1 \subset \dots \subset K_m$$
+and we can define the inclusion maps $f_j : K_j \hookrightarrow K_{j+1}$ for $j = 0, 1, \dots, m-1$ where each simplex in $K_j$ is sent to the same simplex in $K_{j+1}$. We can see that $f_j$ is a simplicial map, so it induces the linear maps $H_k(f) : H_k(K_j) \to H_k(K_{j+1})$. We then have a persistent, or two-dimensional, chain complex as seen below:
+
+\scalebox{0.88}{
+\begin{tikzpicture}[node distance=2cm, auto]
+	% Define nodes
+	\node (01) {$0$};
+	\node (cdk1) [right of=01] {$C_d(K_1)$};
+	\node (cd1k1) [right of=cdk1] {$C_{d-1}(K_1)$};
+	\node (cd2k1) [right of=cd1k1] {$\dots$};
+	\node (ckk1) [right of=cd2k1] {$C_k(K_1)$};
+	\node (ck1k1) [right of=ckk1] {$C_{k-1}(K_1)$};
+	\node (ck2k1) [right of=ck1k1] {$\dots$};
+	\node (c1k1) [right of=ck2k1] {$C_1(K_1)$};
+	\node (c0k1) [right of=c1k1] {$C_0(K_1)$};
+	\node (012) [right of=c0k1] {$0$};
+
+	\node (02) [below of=01] {$0$};
+	\node (cdk2) [right of=02] {$C_d(K_2)$};
+	\node (cd1k2) [right of=cdk2] {$C_{d-1}(K_2)$};
+	\node (cd2k2) [right of=cd1k2] {$\dots$};
+	\node (ckk2) [right of=cd2k2] {$C_k(K_2)$};
+	\node (ck1k2) [right of=ckk2] {$C_{k-1}(K_2)$};
+	\node (ck2k2) [right of=ck1k2] {$\dots$};
+	\node (c1k2) [right of=ck2k2] {$C_1(K_2)$};
+	\node (c0k2) [right of=c1k2] {$C_0(K_2)$};
+	\node (022) [right of=c0k2] {$0$};
+
+	\node (03) [below of=02] {$0$};
+	\node (cdk3) [right of=03] {$C_d(K_3)$};
+	\node (cd1k3) [right of=cdk3] {$C_{d-1}(K_3)$};
+	\node (cd2k3) [right of=cd1k3] {$\dots$};
+	\node (ckk3) [right of=cd2k3] {$C_k(K_3)$};
+	\node (ck1k3) [right of=ckk3] {$C_{k-1}(K_3)$};
+	\node (ck2k3) [right of=ck1k3] {$\dots$};
+	\node (c1k3) [right of=ck2k3] {$C_1(K_3)$};
+	\node (c0k3) [right of=c1k3] {$C_0(K_3)$};
+	\node (032) [right of=c0k3] {$0$};
+
+	\node (00) [below of=03] {$\vdots$};
+	\node (cdk0) [right of=00] {$\vdots$};
+	\node (cd1k0) [right of=cdk0] {$\vdots$};
+	\node (cd2k0) [right of=cd1k0] {$\vdots$};
+	\node (ckk0) [right of=cd2k0] {$\vdots$};
+	\node (ck1k0) [right of=ckk0] {$\vdots$};
+	\node (ck2k0) [right of=ck1k0] {$\vdots$};
+	\node (c1k0) [right of=ck2k0] {$\vdots$};
+	\node (c0k0) [right of=c1k0] {$\vdots$};
+	\node (000) [right of=c0k0] {$\vdots$};
+	
+	\node (0m) [below of=00] {$0$};
+	\node (cdkm) [right of=0m] {$C_d(K_m)$};
+	\node (cd1km) [right of=cdkm] {$C_{d-1}(K_m)$};
+	\node (cd2km) [right of=cd1km] {$\dots$};
+	\node (ckkm) [right of=cd2km] {$C_k(K_m)$};
+	\node (ck1km) [right of=ckkm] {$C_{k-1}(K_m)$};
+	\node (ck2km) [right of=ck1km] {$\dots$};
+	\node (c1km) [right of=ck2km] {$C_1(K_m)$};
+	\node (c0km) [right of=c1km] {$C_0(K_m)$};
+	\node (0m2) [right of=c0km] {$0$};
+
+
+	% Draw edges
+	\path[->]
+	(01) edge node {$\partial_{d+1}$} (cdk1)
+	(cdk1) edge node {$\partial_d$} (cd1k1)
+	(cd1k1) edge node {$\partial_{d-1}$} (cd2k1)
+	(cd2k1) edge node {$\partial_{k+1}$} (ckk1)
+	(ckk1) edge node {$\partial_k$} (ck1k1)
+	(ck1k1) edge node {$\partial_{k+1}$} (ck2k1)
+	(ck2k1) edge node {$\partial_2$} (c1k1)
+	(c1k1) edge node {$\partial_1$} (c0k1)
+	(c0k1) edge node {$\partial_0$} (012)
+
+	(02) edge node {$\partial_{d+1}$} (cdk2)
+	(cdk2) edge node {$\partial_d$} (cd1k2)
+	(cd1k2) edge node {$\partial_{d-1}$} (cd2k2)
+	(cd2k2) edge node {$\partial_{k+1}$} (ckk2)
+	(ckk2) edge node {$\partial_k$} (ck1k2)
+	(ck1k2) edge node {$\partial_{k+1}$} (ck2k2)
+	(ck2k2) edge node {$\partial_2$} (c1k2)
+	(c1k2) edge node {$\partial_1$} (c0k2)
+	(c0k2) edge node {$\partial_0$} (022)
+	
+	(03) edge node {$\partial_{d+1}$} (cdk3)
+	(cdk3) edge node {$\partial_d$} (cd1k3)
+	(cd1k3) edge node {$\partial_{d-1}$} (cd2k3)
+	(cd2k3) edge node {$\partial_{k+1}$} (ckk3)
+	(ckk3) edge node {$\partial_k$} (ck1k3)
+	(ck1k3) edge node {$\partial_{k+1}$} (ck2k3)
+	(ck2k3) edge node {$\partial_2$} (c1k3)
+	(c1k3) edge node {$\partial_1$} (c0k3)
+	(c0k3) edge node {$\partial_0$} (032)
+
+	(0m) edge node {$\partial_{d+1}$} (cdkm)
+	(cdkm) edge node {$\partial_d$} (cd1km)
+	(cd1km) edge node {$\partial_{d-1}$} (cd2km)
+	(cd2km) edge node {$\partial_{k+1}$} (ckkm)
+	(ckkm) edge node {$\partial_k$} (ck1km)
+	(ck1km) edge node {$\partial_{k+1}$} (ck2km)
+	(ck2km) edge node {$\partial_2$} (c1km)
+	(c1km) edge node {$\partial_1$} (c0km)
+	(c0km) edge node {$\partial_0$} (0m2)
+
+	(cdk1) edge node {$f_1$} (cdk2)
+	(cdk2) edge node {$f_2$} (cdk3)
+	(cdk3) edge node {$f_3$} (cdk0)
+	(cdk0) edge node {$f_{m-1}$} (cdkm)
+
+	(cd1k1) edge node {$f_1$} (cd1k2)
+	(cd1k2) edge node {$f_2$} (cd1k3)
+	(cd1k3) edge node {$f_3$} (cd1k0)
+	(cd1k0) edge node {$f_{m-1}$} (cd1km)
+
+	(ckk1) edge node {$f_1$} (ckk2)
+	(ckk2) edge node {$f_2$} (ckk3)
+	(ckk3) edge node {$f_3$} (ckk0)
+	(ckk0) edge node {$f_{m-1}$} (ckkm)
+
+	(ck1k1) edge node {$f_1$} (ck1k2)
+	(ck1k2) edge node {$f_2$} (ck1k3)
+	(ck1k3) edge node {$f_3$} (ck1k0)
+	(ck1k0) edge node {$f_{m-1}$} (ck1km)
+
+	(c1k1) edge node {$f_1$} (c1k2)
+	(c1k2) edge node {$f_2$} (c1k3)
+	(c1k3) edge node {$f_3$} (c1k0)
+	(c1k0) edge node {$f_{m-1}$} (c1km)
+
+	(c0k1) edge node {$f_1$} (c0k2)
+	(c0k2) edge node {$f_2$} (c0k3)
+	(c0k3) edge node {$f_3$} (c0k0)
+	(c0k0) edge node {$f_{m-1}$} (c0km);
+\end{tikzpicture}
+}
+
+However, this structure is clearly very complex and is not intuitive to follow. Thus, we make use of a result from (Zomordian and Carlsson, 2005), which states that a persistent barcode completely describes the persistent complex above. Therefore, we focus our attention on said persistent barcodes instead. Additionally, we can compute persistent barcodes without actually computing homology at every scale we test. We can instead define the $p$-persistent $k$-th homology group by
+$$H_k^{j, p} = \text{ker}(H_k(K_{j})) \, / \, (\text{im}(H_k(K_{j+p})) \cap \text{ker}(H_k(K_j)) ),$$
+which capture the homology classes in $H_k(K_j)$ that persist in $H_k(K_{j+p})$. This allows us to track the persistence of each homology class as it passes through the chain and obtain the associated persistent barcodes. 
+
+
+
+# 3 Experimental Process and Results
+
+We begin by noting that there is a vast computational difference for data simulated from a known manifold and for real-world data. Real-world is evermore complex and can not be entirely separated between categories, making it nearly impossible to simplify. Hence, a majority of analysis in (Naitzat) was conducted on simulated data and results were then validated using real-world data, after the fact. In Section 4, we will conduct analysis on two simulated data sets and one real-world data set for a sparser result. 
+
+As well, Naitzat et al.'s focus was on what they considered "well-trained" neural networks. This is one in which the training error is zero and the generalization error is $\approx$ 0.01 for simulated data and about $3-5%$ for real-world data. These types of networks are, however, very difficult and time consuming to train, making them impractical for many purposes. Thus, we will not focus on as strict of a model and instead try to generalize Naitzat et al.'s results to less "well-trained" networks. 
+
+Our experiment consists of four major steps:
+\begin{enumerate}
+  \item[(i)] generate a manifold $M = M_a \cup M_b \subset \R^d, M_a \cap M_b = \varnothing$,
+  \item[(ii)] uniformly sample a dense point cloud $X \subset M$ with $X_i = X \cap M_i, i = a, b$,
+  \item[(iii)] train an $l$-layer neural network $\nu : \R^d \to [0, 1]$ on the labeled training set $X = X_a \cup X_b$ to classify points on $M$,
+  \item[(iv)] compute homology of the output at the $j$-th layer $\nu_j(X_i), j = 0, 1, \dots, l+1$. 
+\end{enumerate}
+
+Computing homology is by far the most computationally expensive step in our procedure. To start, we must select the metric $\delta$ and scale $\epsilon$ to construct Vietoris-Rips complex on $X$ that accurately describes the topology of $M$. The best choice of $\delta$ is the graph geodesic distance on the $K$-nearest neighbors graph of $X$. We denote this metric by $\delta_k$ and note that, while the Euclidean distance is formed to construct the KNN graph and find $\delta_k$, this is its only use here and we now rely on $\delta_k$ exclusively for this computations. 
+
+This leaves us with two parameters to compute, $k_*$ and $\epsilon_*$. However, this is much more difficult than estimating one parameter, specifically since there is no multivariable analog of persistent barcodes. We instead construct a filtered complex over $k$ and $\epsilon$ that help us select optimal values. Our exact procedure for calculating homologies is as follows:
+\begin{enumerate}
+  \item Set $\epsilon = 1$. Find $k_*$ such that $\beta_0(\VR_{k_*, 1}(X)) = \beta_0(M)$. 
+  \item Define $\delta_{k_*}$ and find $\epsilon_*$ such that $\beta_i(\VR_{k_*, \epsilon_*}(X)) = \beta_i(M), i = 1, 2$, i.e. find the correct scale. 
+  \item Estimate $\beta(M) \approx \beta(\VR_{k_*, \epsilon_*}(X))$
+\end{enumerate}
+Note that if there are a range of values that satisfy the condition of $k_*$ or $\epsilon_*$, then we select the middle most value in the range. 
+
+(Naitzat) used three simulated data sets trained on over 1,200 total neural networks and computed over 10,000 homologies to conclude that, not only do neural networks change the topology of a data set on a layer-by-layer-basis as it passes through, but that non-homeomorphic activations like ReLU change topology at a faster rate than non-homeomorphic mappings. The authors also used varying networks widths and depths and concluded that width does not significantly affect topological simplifications but does cause the network to be harder to train, and that the depth is an important factor in that topological changes in deeper networks are spread evenly over many layers, while in shallow networks, the final layers are forced to do all of the simplification. These conclusion were tested on a smaller set of real-world data samples and all tests validated the conclusions from the simulated data examples. 
+
+It should be noted that this experiment can be stated in the simple format: for a manifold $M = M_a \cup M_b$ with $M_a \cap M_b = \varnothing$, we track how the decision boundary simplifies throughout the network, going from a very topologically complicated object in the original training set to a linear hyperplane by the last layer. 
+
+
+
+\pagebreak
+# 4 Application of Theory
+
+As a method of validation, we select two data sets, one real and one simulated. For our real-world data, we choose the MNIST fashion data set, and for the simulated set, we simulate a binary set $M = M_a \cup M_b, M_a \cap M_b = \varnothing$, where $M_a$ is the unit ball in $\R^3$ centered about the origin, and $M_b$ is the outer shell of radius $r \in (1, 2]$. We split both into training and testing sets and fit each training set to two neural networks, one with $\tanh$ activation and one with ReLU activation. 
+
+For the simulated data, we fit both $\tanh$ and $ReLU$ networks with two layers of 32 neurons each and trained to about 95% training accuracy. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\pagebreak
+# 5 Discussion and Interpretation
+
+
+
+
+
+
+
+# 6 Conclusion
+
+Needs to be tested on other non-homeomorphic activations
+
+
+
+
+
+# Appendix
+
+## Useful Definitions
+
+\begin{defn}{Topology}
+Let $X$ be a set. A topology, $\tau$, on $X$ is a collection of subsets of $X$ satisfying the following:
+\begin{enumerate}
+  \item[(i)] $\varnothing, X \in \tau$;
+  \item[(ii)] $X_1, \dots, X_n \in \tau \implies \bigcap_{k=1}^n X_k \in \tau$;
+  \item[(iii)] $\{ X_k \} \subset \tau \implies \bigcup_k X_k \in \tau$.
+\end{enumerate}
+\end{defn}
+
+\begin{defn}{Topological Space}
+An ordered pair $(X, \tau)$ is said to be a topological space if $X$ is a set and $\tau$ is a topology on $X$. 
+\end{defn}
+
+\begin{defn}{Topological Manifold}
+Roughly, an $n$-dimensional topological manifold is a topological space that locally resembles $\R^n$ at each point. Formally, it is a second countable Hausdorff space that is locally homeomorphic to $\R^n$. 
+\end{defn}
+
+\begin{defn}{Contractible}
+A topological space is called contractible if it can be continuously deformed to a single point. 
+\end{defn}
+
+\begin{defn}{Simplex}
+An $n$-dimensional simplex is the convex hull of a set of $n+1$ vertices. 
+\end{defn}
+
+\begin{defn}{Simplicial Complex}
+Let $K$ be a finite collection of simplicies of dimension at most $m$. We say $K$ is a finite, $m$-dimensional simplicial complex if the following conditions are satisfied:
+\begin{enumerate}
+  \item[(i)] if $\sigma_0 \subset \sigma \in K$, then $\sigma_0 \in K$;
+  \item[(ii)] if $\sigma = \sigma_1 \cap \sigma_2 \neq \varnothing$ for $\sigma_1, \sigma_2 \in K$, then $\sigma \subset \sigma_1$ and $\sigma \subset \sigma_2$. 
+\end{enumerate}
+\end{defn}
+
+
+## R Code Used for Analysis
+
+```{r eval=FALSE}
+library(keras3)
+library(FNN)
+library(igraph)
+library(TDAstats)
+
+set.seed(13)
+
+`%<-%` <- keras3::`%<-%`
+```
+
+```{r eval=FALSE}
+# Simulated data sampling
+sample_dirs3 <- function(n) { # sample directions in R^3
+  dirs <- matrix(rnorm(3*n), nrow=n, ncol=3)
+  norms <- sqrt(rowSums(dirs^2))
+  return(dirs/norms)
+}
+
+sample_ball <- function(n, r=1) { # M_a = unit ball
+  u_list <- runif(n)
+  r_list <- r * u_list^(1/3)
+  
+  dirs <- sample_dirs3(n)
+  return(dirs * r_list)
+}
+
+sample_shell <- function(n, r_inner=1, r_outer=2) { # M_b = outer shell between r=1,2
+  u_list <- runif(n)
+  r_list <- ((r_outer^3 - r_inner^3) * u_list + r_inner^3)^(1/3)
+  
+  dirs <- sample_dirs3(n)
+  return(dirs * r_list)
+}
+
+sample_manifold <- function(n, frac_a=0.35) {
+  n_a <- round(n * frac_a)
+  n_b <- n - n_a
+  
+  X_a <- sample_ball(n, 1)
+  y_a <- rep(0, times=n_a)
+    
+  X_b <- sample_shell(n, 1, 2)
+  y_b <- rep(1, times=n_b)
+  
+  X <- rbind(X_a, X_b)
+  y <- factor(c(y_a, y_b), levels=c(0, 1))
+  
+  return(list(X=X, y=y))
+}
+```
+
+```{r eval=FALSE}
+# Simulated data : M a sphere
+beta_M <- c(1, 0, 0)
+c(X, y) %<-% sample_manifold(10000)
+
+n <- nrow(X)
+rand_idx <- sample(1:n)
+train_frac <- 0.8
+n_train <- floor(train_frac * n)
+
+train_idx <- rand_idx[1:n_train]
+test_idx <- rand_idx[(n_train + 1):n]
+
+X_train <- as.matrix(X[train_idx]); y_train <- as.integer(y[train_idx])
+X_test <- as.matrix(X[test_idx]); y_test <- as.integer(y[test_idx])
+```
+
+```{r eval=FALSE}
+# Real data : fashion MNIST
+fashion_mnist <- dataset_fashion_mnist()
+c(train_data_real, train_labels_real) %<-% fashion_mnist$train
+c(test_data_real, test_labels_real) %<-% fashion_mnist$test
+```
+
+
+
+
+```{r eval=FALSE}
+epochs <- 50
+batch_size <- 128
+```
+
+```{r eval=FALSE}
+# Simulated tanh
+model_sim_tanh <- keras_model_sequential(input_shape=3) %>%
+  layer_flatten() %>%
+  layer_dense(units=16, activation="tanh") %>%
+  layer_dense(units=32, activation="tanh") %>%
+  layer_dense(units=1, activation="sigmoid") 
+
+model_sim_tanh %>% compile(optimizer=optimizer_adam(learning_rate=1e-3), 
+                           loss="binary_crossentropy", 
+                           metric="accuracy")
+
+model_sim_tanh %>% fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=1)
+```
+
+```{r eval=FALSE}
+# Simulated ReLU
+```
+
+```{r eval=FALSE}
+# Real tanh
+model_real_tanh <- keras_model_sequential(input_shape=c(28, 28, 1)) %>%
+  layer_conv_2d(filters=16, kernel_size=c(3, 3), activation="tanh") %>%
+  layer_conv_2d(filters=16, kernel_size=c(3, 3), activation="tanh") %>%
+  layer_max_pooling_2d(pool_size=c(2, 2)) %>%
+  
+  layer_conv_2d(filters=32, kernel_size=c(3, 3), activation="tanh") %>%
+  layer_conv_2d(filters=32, kernel_size=c(3, 3), activation="tanh") %>%
+  layer_max_pooling_2d(pool_size=c(2, 2)) %>%
+  
+  layer_flatten() %>%
+  layer_dense(units=128, activation="tanh") %>%
+  layer_dense(units=10, activation="softmax")
+
+model_real_tanh %>% compile(optimizer=optimizer_adam(learning_rate=0.03), 
+                            loss="sparse_categorical_crossentropy", 
+                            metric="accuracy")
+
+model_real_tanh %>% fit(train_data_real, train_labels_real, 
+                        epochs=epochs, batch_size=batch_size, verbose=1)
+```
+
+```{r eval=FALSE}
+# Real ReLU
+model_real_relu <- keras_model_sequential(input_shape=c(28, 28, 1)) %>%
+  layer_conv_2d(filters=16, kernel_size=c(3, 3), activation="relu") %>%
+  layer_conv_2d(filters=16, kernel_size=c(3, 3), activation="relu") %>%
+  layer_max_pooling_2d(pool_size=c(2, 2)) %>%
+  
+  layer_conv_2d(filters=32, kernel_size=c(3, 3), activation="relu") %>%
+  layer_conv_2d(filters=32, kernel_size=c(3, 3), activation="relu") %>%
+  layer_max_pooling_2d(pool_size=c(2, 2)) %>%
+  
+  layer_flatten() %>%
+  layer_dense(units=128, activation="relu") %>%
+  layer_dense(units=10, activation="softmax")
+
+model_real_relu %>% compile(optimizer=optimizer_adam(learning_rate=0.03), 
+                  loss="sparse_categorical_crossentropy", 
+                  metric="accuracy")
+
+model_real_relu %>% fit(train_data_real, train_labels_real, 
+                        epochs=epochs, batch_size=batch_size, verbose=1)
+```
+
+
+
+
+
+```{r eval=FALSE}
+KNN <- function(X, k) {
+  n <- nrow(X)
+  nn <- FNN::get.knn(X, k=k)
+  
+  edges <- c()
+  for (i in 1:n) {
+    for (j in nn$nn.index[i, ]) {
+      if (j != i) edges <- rbind(edges, c(i, j))
+    }
+  }
+  
+  # remove duplicates
+  edges <- unique(t(apply(edges, 1, sort)))
+  
+  return(igraph::graph_from_edgelist(edges, directed=FALSE)) # KNN graph
+}
+
+beta0_vr_k1 <- function(X, k) {
+  graph <- KNN(X, k)
+  return(igraph:components(graph)$no) # int - num components
+}
+
+delta_k <- function(X, k) {
+  graph <- KNN(X, k)
+  D <- igraph::distances(graph, weigths=NA)
+  D[!is.finite(D)] <- Inf
+  return(as.matrix(D)) # matrix - distances
+}
+
+compute_betti <- function(ph, eps, max_dim=3) {
+  betti <- rep(0, times=max_dim + 1)
+  for (d in 0:max_dim) {
+    rows <- ph[ph$dimension == d, ]
+    if (nrow(rows) == 0) betti[d+1] <- 0
+    else {
+      alive <- rows$birth <= eps && (rows$death > eps | is.infinite(rows$death))
+      betti[d+1] <- sum(alive)
+    }
+  }
+  return(betti) # list - betti numbers
+}
+
+estimate_vr_parameters <- function(X, beta_M, k_vals, eps_vals, max_dim=3) {
+
+  # Step 1 : find k_opt
+  eps = 1
+  beta0_vals <- sapply(k_vals, function(k) beta0_vr_k1(X, k))
+  
+  k_good <- k_vals[beta0_vals == beta_M[1]]
+  if (length(k_good) == 0) stop("No k in list gives correct zeroth homology.")
+  
+  k_opt <- k_good[ceiling(length(k_good) / 2)]
+
+  # Step 2 : find eps_opt 
+  k <- k_opt
+  
+  D_k <- delta_k(X, k_opt)
+  
+  eps_good <- c()
+  betti_list <- c()
+  ph <- TDAstats::calculate_homology(mat=D_k, dim=max_dim, 
+                  threshold=max(eps_vals), format="distmat", return_df=TRUE)
+  
+  for (eps in eps_vals) {
+    betti <- compute_betti(ph, eps, max_dim)
+    if (all(betti[c(2, 3)] == betti_M[c(2, 3)])) {
+      eps_good <- c(eps_good, eps)
+      betti_list[[length(betti_list)+1]] <- betti
+    }
+  }
+  
+  if (length(eps_good) == 0) stop("No epsilon in list gives correct homology")
+  eps_opt <- eps_good[ceiling(length(eps_good) / 2)]
+  
+  return(list(k=k_opt, eps=eps_opt))
+}
+
+track_homology <- function(X, beta_M, k_opt, eps_opt) {
+  return()
+}
+```
+
+```{r}
+#params <- estimate_vr_parameters(X, beta_M, k_vals, eps_vals, max_dim)
+#track_homology(X, beta_M, params$k, params$eps, model)
+```
+
+
+
+
+# References
+
+- "Topology of Deep Neural Networks"; Gregory Naitzat
+- \underline{Introduction to Topological Manifolds}; John M. Lee
+- (Zomorodian and Carlsson, 2005)
+
+
