@@ -10,6 +10,7 @@
 % Commands
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\im}{\text{im}}
+\newcommand{\VR}{\text{VR}}
 
 
 \begin{document}
@@ -59,34 +60,6 @@
 \end{itemize}
 
 \subsubsection*{Homology and Betti Numbers}
-
-\begin{tikzpicture}[node distance=1.5cm, auto]
-	% Define nodes
-	\node (01) {$0$};
-	\node (cdk1) [right of=01] {$C_d$};
-	\node (cd1k1) [right of=cdk1] {$C_{d-1}$};
-	\node (cd2k1) [right of=cd1k1] {$\dots$};
-	\node (ckk1) [right of=cd2k1] {$C_k$};
-	\node (ck1k1) [right of=ckk1] {$C_{k-1}$};
-	\node (ck2k1) [right of=ck1k1] {$\dots$};
-	\node (c1k1) [right of=ck2k1] {$C_1$};
-	\node (c0k1) [right of=c1k1] {$C_0$};
-	\node (012) [right of=c0k1] {$0$};
-
-	% Draw edges
-	\path[->]
-	(01) edge node {$\partial_{d+1}$} (cdk1)
-	(cdk1) edge node {$\partial_d$} (cd1k1)
-	(cd1k1) edge node {$\partial_{d-1}$} (cd2k1)
-	(cd2k1) edge node {$\partial_{k+1}$} (ckk1)
-	(ckk1) edge node {$\partial_k$} (ck1k1)
-	(ck1k1) edge node {$\partial_{k+1}$} (ck2k1)
-	(ck2k1) edge node {$\partial_2$} (c1k1)
-	(c1k1) edge node {$\partial_1$} (c0k1)
-	(c0k1) edge node {$\partial_0$} (012);
-\end{tikzpicture}
-
-
 Let $M \subset \R^d$ be a manifold and $k \in \{ 0, 1, \dots, d \}$:
 \begin{itemize}
 	\item The $k$-th homology group of $M$ is given by $H_k = \ker(\partial_k) / \im(\partial_{k+1})$
@@ -122,7 +95,7 @@ i.e. the set of $k$-simplicies such that to vertices are contained in a non-zero
 \begin{itemize}
 	\item Generally speaking, a persistence barcode is an interval $[\varepsilon, \varepsilon')$ where its left-end point $\varepsilon$ is the scale at which the new feature appears or born, and its right-end point $\varepsilon'$ is the scale at which that feature disappears or die. The length of the interval $\varepsilon' - \varepsilon$ is the persistence of that feature.
 	\item Features that are non-robust to perturbations will produce short intervals; conversely, features that persist long enough, i.e., produce long intervals, are thought to be prominent features of the underlying manifold
-	\item We are interested in selecting $\varepsilon_*$ from a finite set of $\varepsilon_0 < \varepsilon_1 < \dots < \varepsilon_m$. Letting $K_j = VR_{\varepsilon_j}(X)$, we then have that $K_0 \subset K_1 \subset \dots \subset K_m$. 
+	\item We are interested in selecting $\varepsilon_*$ from a finite set of $\varepsilon_0 < \varepsilon_1 < \dots < \varepsilon_m$. Letting $K_j = \VR_{\varepsilon_j}(X)$, we then have that $K_0 \subset K_1 \subset \dots \subset K_m$. 
 \end{itemize}
 
 \scalebox{0.85}{
@@ -257,6 +230,84 @@ i.e. the set of $k$-simplicies such that to vertices are contained in a non-zero
 	(c0k0) edge node {$f_{m-1}$} (c0km);
 \end{tikzpicture}
 }
+
+
+\section*{Overview of Problem and Methodology}
+
+\begin{itemize}
+	\item focus on binary classification
+	\item ``we seek to classify teo different probability distributions supported on teo disjoint manifolds $M_a, M_b \subset \R^d$''
+	\item take $T \subset M_a \cup M_b = M$ uniformly and densely 
+	\item train the NN $\nu : \R^d \to [0, 1]$ on $T$ until well-trained
+	\item deliberately choose $M_a$ and $M_b$ to have topologically complicated decision boundary $D \subset \R^d$
+	\item results will show that a well-trained NN reduces the topology on a layer-by-layer basis until $D$ is a hyperplane in $\R^p$ in the last layer
+	\item In our approach, we can only indirectly observe $\nu_j(D)$ using $\nu_j(M_a), \nu_k(M_b)$, but not directly, i.e. no explicit $\omega(D)$
+\end{itemize}
+
+
+\section*{Real Versus Simulated Data}
+
+\begin{itemize}
+	\item In short, we use both real and simulated data
+	\item Simulated Data:
+		\begin{itemize}
+			\item Has well-defined topological features that are known before-hand
+			\item Clean samples, so we can skip denoising (step (i))
+			\item Samples uniformly distributed on $M$
+			\item Can always simulate data with a perfect classifier
+		\end{itemize}
+	\item Real-World Data:
+		\begin{itemize}
+			\item can have vastly more complicated topologies that are nearly impossible to determine
+			\item may not have complete separation of categories, making it impossible to detangle
+		\end{itemize}
+	\item Simulated data allow us to pick the right $\varepsilon_*$ so we only need to compute homology at a single scale, whereas with real data we need to compute homology for a range of scales, making real data more computationally expensive
+	\item In short, simulated data is easy, readily accessible, and non-trivial enough for this paper
+	\item Hence, we do most of our experiments on simulated data and use some real world data at the end to validate the results from the simulation
+\end{itemize}
+
+
+\section*{Methodology}
+
+\begin{itemize}
+	\item 3 simulated data sets
+	\item many, many NNs trained to the prescribed conditions
+	\item Steps for computing $k_*$ and $\varepsilon_*$:
+		\begin{enumerate}
+			\item[(i)] Let $\varepsilon = 1$
+			\item[(ii)] Choose $k_*$ so that $\beta_0(\VR_{k_*, 1}(X)) = \beta_0(M)$
+			\item[(iii)] Let $k = k_*$
+			\item[(iv)] Choose $\varepsilon_*$ so that $\beta_k(\VR_{k_*, 1}(X)) = \beta_k(M)$ for all $k \in \{1, 2, \dots, d-1\}$
+		\end{enumerate}
+	\item Key take away: Homology computations are way more expensive than training to near zero generalization error and can take up to 80 minutes for a single pair $(k_*, \varepsilon_*)$
+\end{itemize}
+
+
+\section*{Results and Discussions}
+\begin{itemize}
+	\item Topology changes and is simplified layer-by-layer
+	\item Non-homeomorphic mappings (ReLU) reduce topology faster than homeomorphic mappinga (tahn)
+	\item tanh struggles to change topology/requires more effort
+	\item Network width does not generally have a significant effect on topological changes, but very narrow networks are much harder to train to a high accuracy
+	\item Reducing network depth forces topological changes to concentrate in final layers rather than being evenly distributed. Network must be of sufficient length to change topology based on complexity of original data set
+\end{itemize}
+
+
+\section*{Consistency with Real-World Data}
+
+\begin{itemize}
+	\item Results from simulated experiments tested on 4 real-world data sets
+	\item All experiments confirmed the same results that neural networks reduce topological complexities in our data and that non-homeomorphic mappings reduce topology faster than homeomoprhic mappings
+\end{itemize}
+
+
+\section*{Conclusion}
+
+\begin{itemize}
+	\item Restatement of results
+	\item We concluded that ReLU changes topology faster than homeomorphic mappings, btu did not investigate the explicit mechanisms of how ReLU changes topology. We speculate that while affine mappings allow for translations, reflections, and contractions, composition with ReLU add the ability to fold space
+\end{itemize}
+
 
 \subsection*{Planning}
 \begin{itemize}

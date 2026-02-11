@@ -2,6 +2,7 @@
 output:
   pdf_document:
     latex_engine: pdflatex
+fontsize: 11pt
 header-includes: 
   - \usepackage{tikz}
   - \usepackage{pgfplots}
@@ -24,37 +25,20 @@ knitr::opts_chunk$set(
 
 \newenvironment{defn}[1]{\textbf{Definition.} (#1) \\}{}
 
-\begin{titlepage}
-\begin{center}
+\title{Topological Complexity in Deep Neural Networks}
+\author{Jake Merry}
+\date{December 10, 2025}
 
-  \vspace*{1in}
+\maketitle
 
-  \Large \textbf{Topological Complexity in Deep Neural Networks}
-
-  \vspace{5.5in}
-
-  \large Jake Merry \\
-  \large Pstat 231 - Statistical Machine Learning \\
-  \large Yu Guo \\
-  \large December, 10 2025
-
-\end{center}
-\end{titlepage}
-
-\pagebreak
+\vspace{3em}
 
 
 # 1 Introduction and Motivation 
 
+Following the work of Naitzat et al., we study the question of what the shape of a data set can tell us about its classification process. The paper *Topology of Deep Neural Networks* provides an in depth dive into how neural networks are able to change the topology of a data set as it passes through its layers. After extensive tests on real and simulated data sets, their conclusions were four-fold: (i) the effectiveness of an activation function is not dependent on whether or not it is smooth, but rather on whether or not it is homeomorphic (a topology preserving map), (ii) neural networks change topology on a layer-by-layer basis until the final layer when the decision boundary becomes a hyperplane, (iii) topological changes occur primarily in the later layers of the network, whereas the earliest layers change only geometry, and (iv) topological changes are robust over multiple training instances. These results give conclusions to questions about why ReLU is a more effective activation function that sigmoidal activations such as $\tanh$ and how neural networks are able to reduce highly complex data sets into separated components. 
 
-
-In this paper, after giving a brief exposition on the topology and homology concepts necessary to understand these contributions, we will describe the process taken to conduct such experiments and we will provide results from our own experiments to validate these conclusion. 
-
-
-
-
-
-
+In this paper, after giving a brief exposition on the topology and homology concepts necessary to understand these contributions, we will describe the process taken to conduct such experiments and we will provide results from our own attempts at replicating similar analyses. 
 
 
 
@@ -128,9 +112,9 @@ Note that the definition of the Vietoris-Rips complex depends on the choice of t
 
 ### 2.3 Persistent Homology
 
-Homology classes are sensitive to perturbations in data which affects the estimation of Betti numbers. Persistent homology addresses this issue by finding features of the data set that are robust to noise. To do this, we incorporate the scale, $\epsilon > 0$, into our homology calculations. For instance, when $\epsilon = 0$, we have that $\VR_0(X) = \{ [x] : x \in X \}$, $\beta_0 = |X|$, and $\beta_k = 0$ for all $k > 0$, i.e. $\epsilon = 0$ overfits the data set. As well, as $\epsilon \to \infty$, all of our vertices become connected and we are left with a single contractible space. Hence, the topologies at both extrema are trivial and we seek to find a balance somewhere inbetween. This is done using persistent barcodes. 
+Homology classes are sensitive to perturbations in data which affects the estimation of Betti numbers. Persistent homology addresses this issue by finding features of the data set that are robust to noise. To do this, we incorporate the scale, $\epsilon > 0$, into our homology calculations. For instance, when $\epsilon = 0$, we have that $\VR_0(X) = \{ [x] : x \in X \}$, $\beta_0 = |X|$, and $\beta_k = 0$ for all $k > 0$, i.e. $\epsilon = 0$ overfits the data set. As well, as $\epsilon \to \infty$, all of our vertices become connected and we are left with a single contractible space. Hence, the topologies at both extrema are trivial and we seek to find a balance somewhere inbetween. This is done using persistent bar codes. 
 
-In short, persistent barcodes are intervals $[\epsilon, \epsilon')$, where $\epsilon$ is the scale at which a feature appears and $\epsilon'$ is the scale at which the same feature disappears. We call the length of the interval the persistence of the feature, describing the prominence of the feature. For our purposes, the features that we will be interested in are the the homology classes in the $k$-th homology group. This allows us to identify an optimal scale $\epsilon_*$ at which all prominent features are present in the complex. To simplify matters, we will fix a finite, ordered list $\epsilon_0 < \epsilon_1 < \dots < \epsilon_m$ from which we will decide our optimal $\epsilon_*$, but this list could be as large as we like. 
+In short, persistent bar codes are intervals $[\epsilon, \epsilon')$, where $\epsilon$ is the scale at which a feature appears and $\epsilon'$ is the scale at which the same feature disappears. We call the length of the interval the persistence of the feature, describing the prominence of the feature. For our purposes, the features that we will be interested in are the the homology classes in the $k$-th homology group. This allows us to identify an optimal scale $\epsilon_*$ at which all prominent features are present in the complex. To simplify matters, we will fix a finite, ordered list $\epsilon_0 < \epsilon_1 < \dots < \epsilon_m$ from which we will decide our optimal $\epsilon_*$, but this list could be as large as we like. 
 
 We define $K_j = \VR_{\epsilon_j}(X)$ for all $j = 0, 1, \dots, m$. Then, 
 $$K_0 \subset K_1 \subset \dots \subset K_m$$
@@ -305,44 +289,53 @@ It should be noted that this experiment can be stated in the simple format: for 
 
 
 
-\pagebreak
-# 4 Application of Theory
+# 4 Limitations and Obstacles
 
-As a method of validation, we select two data sets, one real and one simulated. For our real-world data, we choose the MNIST fashion data set, and for the simulated set, we simulate a binary set $M = M_a \cup M_b, M_a \cap M_b = \varnothing$, where $M_a$ is the unit ball in $\R^3$ centered about the origin, and $M_b$ is the outer shell of radius $r \in (1, 2]$. We split both into training and testing sets and fit each training set to two neural networks, one with $\tanh$ activation and one with ReLU activation. 
+The results given by Naitzat et al. shed an important light not only on the inner workings of how neural networks are able to work as classifier models for extremely complicated data sets, but also on how different model parameters function to make these changes happen. However, these experiments are limited in how much they are able to accomplish. For one, while training neural networks to near perfect accuracy is an extremely hard problem to begin with, it hardly carries the bulk of the computational effort required for tracking this topological changes. The authors shed light on the fact that, even working on very powerful machinery, the computation of a single pair of parameters $(k_*, \epsilon_*)$ can take over 80 minutes. This makes our job of tracking many of them per model very difficult. In fact, in our attempts at producing similar analyses on our own data sets, we were unable to obtain coherent results these calculations. The `R` code we used can be found in the Appendix at this end of this paper, but they do not seem to be of significant use other than the fact that every network that we trained with ReLU fit to a higher training and testing accuracy than those fitted with the same parameters but with $\tanh$ activation. This, however, only leaves us with the original question of why ReLU works more efficient, it does not explain how. 
 
-For the simulated data, we fit both $\tanh$ and $ReLU$ networks with two layers of 32 neurons each and trained to about 95% training accuracy. 
-
+Our main obstacle in computation was using `TDAstats` to compute persistent barcodes. The discontinuous nature of the graph geodesic distance, $\delta_k$, and the fact that the `compute_homology` function requires a finite threshold both add to the result that homology intervals get cut back and those features which should persist indefinitely do not, i.e. our Betti number computations continually lead to $\beta_0$, a topologically impossible feature. In many instances, the largest death time in the 0-dimensional persistent was very near the threshold, causing all 0-dimensional classes to appear extinct near the end of the range. 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-\pagebreak
 # 5 Discussion and Interpretation
 
+Although the numerical homology computations were unstable, we can still describe the expected behavior of the experiment. For our simulated data set, we used a ball-shell manifold, where $M_a$ was the unit ball in $\R^3$ and $M_b$ was a set from radius 1 to 2, surrounding $M_a$. Our manifold $M = M_a \cup M_b$ has Betti numbers $\beta(M) = (1, 0, 0)$, i.e. it is a contractible space, and as such we would expect that at the correct scale $(k_*, \epsilon_*)$, the Vietoris-Rips complex should correctly exhibit a manifold with one connected component and no holes of any higher dimension. For our simulated data, we selected the fashion MNIST data set. Both data sets were split into training and testing sets and both training sets we fit to neural networks with $\tanh$ and ReLU activations. In almost all cases, the training and testing error of the ReLU networks were lower than those of the $\tanh$ activated networks with the mean accuracies summarized in the table below:
+$$\underline\tanh \hspace{4.7cm} \underline{\text{ReLU}}$$
+\begin{center}
+\begin{tabular}{|c|c|c|}
+  \hline
+  & Simulated & Real \\
+  \hline
+  Training & 99.09 & 93.15 \\
+  \hline
+  Testing & 99.20 & 91.97 \\
+  \hline
+\end{tabular}
+\qquad 
+\begin{tabular}{|c|c|c|}
+  \hline
+  & Simulated & Real \\
+  \hline
+  Training & 99.61 & 95.69 \\
+  \hline
+  Testing & 99.05 & 92.87 \\
+  \hline
+\end{tabular}
+\end{center}
 
-
-
+If this data set were to pass through a well-trained neural network, we would assume that in the earlier layers, Betti numbers would only change slightly, whereas in the later layers, the data set would fold into $\R^4$ to collapse the two regions onto themselves and create a linearly separable manifold. 
 
 
 
 # 6 Conclusion
 
-Needs to be tested on other non-homeomorphic activations
+In this project, we successfully simulated from a selected manifold and trained neural networks to fit real and simulated data sets. Although our homology computations were not stable enough to obtain reliable results about our data, the issues we encountered reflect real challenges faced in analyzing data topologically. Specifically, we displayed the difficulty in retrieving information about population data when we are only given a sample to work with. 
 
+Naitzat et al.'s conclusions are about to bring about clarity to some aspect about neural networks that mathematicians have wondered about for years. Specifically, it explains that ReLU outperforms other activations due to the fact that it is a non-homeomorphic mapping and not because it is a non-smooth mapping. As well as explaining how neural networks are able to classify complex data sets. 
 
+The paper does, however, leave some questions unanswered. For instance, the authors speculate, while they did not study the mechanisms of how ReLU actually changes topology, that since an affine map can only cause a rotation, reflection, or a contraction, that ReLU gives an activation function the ability to fold space in a higher dimension. However, this is not proven and could, whether true or false, bring more clarity to the inner workings of neural networks. 
+
+Despite the challenges faced, this project illustrates the core principles of topological learning that neural networks continuously deform the shape of our data and persistent homology provides a way to measuring these deformations. 
 
 
 
@@ -392,7 +385,7 @@ library(FNN)
 library(igraph)
 library(TDAstats)
 
-set.seed(13)
+set.seed(123)
 
 `%<-%` <- keras3::`%<-%`
 ```
@@ -425,10 +418,10 @@ sample_manifold <- function(n, frac_a=0.35) {
   n_a <- round(n * frac_a)
   n_b <- n - n_a
   
-  X_a <- sample_ball(n, 1)
+  X_a <- sample_ball(n_a, 1)
   y_a <- rep(0, times=n_a)
     
-  X_b <- sample_shell(n, 1, 2)
+  X_b <- sample_shell(n_b, 1, 2)
   y_b <- rep(1, times=n_b)
   
   X <- rbind(X_a, X_b)
@@ -451,19 +444,21 @@ n_train <- floor(train_frac * n)
 train_idx <- rand_idx[1:n_train]
 test_idx <- rand_idx[(n_train + 1):n]
 
-X_train <- as.matrix(X[train_idx]); y_train <- as.integer(y[train_idx])
-X_test <- as.matrix(X[test_idx]); y_test <- as.integer(y[test_idx])
+X_train <- as.matrix(X[train_idx, ]); y_train <- as.integer(y[train_idx]) - 1
+X_test <- as.matrix(X[test_idx, ]); y_test <- as.integer(y[test_idx]) - 1
 ```
 
 ```{r eval=FALSE}
-# Real data : fashion MNIST
+# Real data
 fashion_mnist <- dataset_fashion_mnist()
 c(train_data_real, train_labels_real) %<-% fashion_mnist$train
 c(test_data_real, test_labels_real) %<-% fashion_mnist$test
+
+train_data_real <- array_reshape(train_data_real, c(dim(train_data_real)[1], 28, 28, 1)) / 255
+test_data_real <- array_reshape(test_data_real, c(dim(test_data_real)[1], 28, 28, 1)) / 255
+train_labels_real <- to_categorical(train_labels_real, 10)
+test_labels_real <- to_categorical(test_labels_real, 10)
 ```
-
-
-
 
 ```{r eval=FALSE}
 epochs <- 50
@@ -471,10 +466,9 @@ batch_size <- 128
 ```
 
 ```{r eval=FALSE}
-# Simulated tanh
+# Simulated NN - tanh
 model_sim_tanh <- keras_model_sequential(input_shape=3) %>%
-  layer_flatten() %>%
-  layer_dense(units=16, activation="tanh") %>%
+  layer_dense(units=32, activation="tanh") %>%
   layer_dense(units=32, activation="tanh") %>%
   layer_dense(units=1, activation="sigmoid") 
 
@@ -483,63 +477,88 @@ model_sim_tanh %>% compile(optimizer=optimizer_adam(learning_rate=1e-3),
                            metric="accuracy")
 
 model_sim_tanh %>% fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=1)
+
+score <- model_sim_tanh %>% evaluate(X_test, y_test, verbose=0)
+score
 ```
 
 ```{r eval=FALSE}
-# Simulated ReLU
+# Simulated NN - ReLU
+model_sim_relu <- keras_model_sequential(input_shape=3) %>%
+  layer_dense(units=32, activation="relu") %>%
+  layer_dense(units=32, activation="relu") %>%
+  layer_dense(units=1, activation="sigmoid") 
+
+model_sim_relu %>% compile(optimizer=optimizer_adam(learning_rate=1e-3), 
+                           loss="binary_crossentropy", 
+                           metric="accuracy")
+
+model_sim_relu %>% fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=1)
+
+score <- model_sim_relu %>% evaluate(X_test, y_test, verbose=0)
+score
 ```
 
 ```{r eval=FALSE}
-# Real tanh
+# Real CNN - tanh
 model_real_tanh <- keras_model_sequential(input_shape=c(28, 28, 1)) %>%
-  layer_conv_2d(filters=16, kernel_size=c(3, 3), activation="tanh") %>%
-  layer_conv_2d(filters=16, kernel_size=c(3, 3), activation="tanh") %>%
+  layer_conv_2d(filters=32, kernel_size=c(3, 3), activation="tanh") %>%
+  layer_conv_2d(filters=32, kernel_size=c(3, 3), activation="tanh") %>%
   layer_max_pooling_2d(pool_size=c(2, 2)) %>%
+  layer_dropout(0.25) %>%
   
-  layer_conv_2d(filters=32, kernel_size=c(3, 3), activation="tanh") %>%
-  layer_conv_2d(filters=32, kernel_size=c(3, 3), activation="tanh") %>%
+  layer_conv_2d(filters=64, kernel_size=c(3, 3), activation="tanh") %>%
+  layer_conv_2d(filters=64, kernel_size=c(3, 3), activation="tanh") %>%
   layer_max_pooling_2d(pool_size=c(2, 2)) %>%
+  layer_dropout(0.25) %>%
   
   layer_flatten() %>%
-  layer_dense(units=128, activation="tanh") %>%
+  layer_dense(units=256, activation="tanh") %>%
+  layer_dropout(0.5) %>%
   layer_dense(units=10, activation="softmax")
 
-model_real_tanh %>% compile(optimizer=optimizer_adam(learning_rate=0.03), 
-                            loss="sparse_categorical_crossentropy", 
-                            metric="accuracy")
+model_real_tanh %>% compile(optimizer=optimizer_adam(learning_rate=1e-3), 
+                  loss="categorical_crossentropy", 
+                  metric="accuracy")
 
 model_real_tanh %>% fit(train_data_real, train_labels_real, 
                         epochs=epochs, batch_size=batch_size, verbose=1)
+
+score <- model_real_tanh %>% evaluate(test_data_real, test_labels_real, verbose=0)
+score
 ```
 
 ```{r eval=FALSE}
-# Real ReLU
+# Real CNN - ReLU
 model_real_relu <- keras_model_sequential(input_shape=c(28, 28, 1)) %>%
-  layer_conv_2d(filters=16, kernel_size=c(3, 3), activation="relu") %>%
-  layer_conv_2d(filters=16, kernel_size=c(3, 3), activation="relu") %>%
+  layer_conv_2d(filters=32, kernel_size=c(3, 3), activation="relu") %>%
+  layer_conv_2d(filters=32, kernel_size=c(3, 3), activation="relu") %>%
   layer_max_pooling_2d(pool_size=c(2, 2)) %>%
+  layer_dropout(0.25) %>%
   
-  layer_conv_2d(filters=32, kernel_size=c(3, 3), activation="relu") %>%
-  layer_conv_2d(filters=32, kernel_size=c(3, 3), activation="relu") %>%
+  layer_conv_2d(filters=64, kernel_size=c(3, 3), activation="relu") %>%
+  layer_conv_2d(filters=64, kernel_size=c(3, 3), activation="relu") %>%
   layer_max_pooling_2d(pool_size=c(2, 2)) %>%
+  layer_dropout(0.25) %>%
   
   layer_flatten() %>%
-  layer_dense(units=128, activation="relu") %>%
+  layer_dense(units=256, activation="relu") %>%
+  layer_dropout(0.5) %>%
   layer_dense(units=10, activation="softmax")
 
-model_real_relu %>% compile(optimizer=optimizer_adam(learning_rate=0.03), 
-                  loss="sparse_categorical_crossentropy", 
+model_real_relu %>% compile(optimizer=optimizer_adam(learning_rate=1e-3), 
+                  loss="categorical_crossentropy", 
                   metric="accuracy")
 
 model_real_relu %>% fit(train_data_real, train_labels_real, 
                         epochs=epochs, batch_size=batch_size, verbose=1)
+
+score <- model_real_relu %>% evaluate(test_data_real, test_labels_real, verbose=0)
+score
 ```
 
-
-
-
-
 ```{r eval=FALSE}
+# Simulated homology computations
 KNN <- function(X, k) {
   n <- nrow(X)
   nn <- FNN::get.knn(X, k=k)
@@ -559,34 +578,34 @@ KNN <- function(X, k) {
 
 beta0_vr_k1 <- function(X, k) {
   graph <- KNN(X, k)
-  return(igraph:components(graph)$no) # int - num components
+  return(igraph::components(graph)$no) # int - num components
 }
 
 delta_k <- function(X, k) {
   graph <- KNN(X, k)
-  D <- igraph::distances(graph, weigths=NA)
+  D <- igraph::distances(graph)
   D[!is.finite(D)] <- Inf
   return(as.matrix(D)) # matrix - distances
 }
 
-compute_betti <- function(ph, eps, max_dim=3) {
-  betti <- rep(0, times=max_dim + 1)
+compute_betti <- function(ph, eps, max_dim=2) {
+  betti <- integer(max_dim + 1)
   for (d in 0:max_dim) {
     rows <- ph[ph$dimension == d, ]
     if (nrow(rows) == 0) betti[d+1] <- 0
     else {
-      alive <- rows$birth <= eps && (rows$death > eps | is.infinite(rows$death))
+      alive <- rows$birth <= eps & (rows$death >= eps | is.infinite(rows$death))
       betti[d+1] <- sum(alive)
     }
   }
+  print(betti)
   return(betti) # list - betti numbers
 }
 
-estimate_vr_parameters <- function(X, beta_M, k_vals, eps_vals, max_dim=3) {
+estimate_vr_parameters <- function(X, beta_M, k_vals, eps_vals, max_dim=2) {
 
   # Step 1 : find k_opt
-  eps = 1
-  beta0_vals <- sapply(k_vals, function(k) beta0_vr_k1(X, k))
+  beta0_vals <- sapply(k_vals, function(k) beta0_vr_k1(X, k)) # eps = 1
   
   k_good <- k_vals[beta0_vals == beta_M[1]]
   if (length(k_good) == 0) stop("No k in list gives correct zeroth homology.")
@@ -599,13 +618,13 @@ estimate_vr_parameters <- function(X, beta_M, k_vals, eps_vals, max_dim=3) {
   D_k <- delta_k(X, k_opt)
   
   eps_good <- c()
-  betti_list <- c()
-  ph <- TDAstats::calculate_homology(mat=D_k, dim=max_dim, 
-                  threshold=max(eps_vals), format="distmat", return_df=TRUE)
+  betti_list <- list()
+  ph <- TDAstats::calculate_homology(mat=D_k, dim=max_dim, threshold=max(eps_vals), 
+                                     format="distmat", return_df=TRUE)
   
   for (eps in eps_vals) {
     betti <- compute_betti(ph, eps, max_dim)
-    if (all(betti[c(2, 3)] == betti_M[c(2, 3)])) {
+    if (all(betti[c(2, 3)] == beta_M[c(2, 3)])) {
       eps_good <- c(eps_good, eps)
       betti_list[[length(betti_list)+1]] <- betti
     }
@@ -617,23 +636,62 @@ estimate_vr_parameters <- function(X, beta_M, k_vals, eps_vals, max_dim=3) {
   return(list(k=k_opt, eps=eps_opt))
 }
 
-track_homology <- function(X, beta_M, k_opt, eps_opt) {
-  return()
+compute_betti_for_X <- function(X, k_opt, eps_opt, max_dim=2) {
+  D_k <- delta_k(X, k_opt)
+  ph <- TDAstats::calculate_homology(mat=D_k, dim=max_dim, threshold=eps_opt, 
+                                     format="distmat", return_df=TRUE)
+  betti_list <- compute_betti(ph, eps_opt, max_dim)
+  
+  return(betti_list)
+}
+
+get_layer_activs <- function(model, X) {
+  layer_outputs <- lapply(model$layers, function(layer) layer$output)
+  
+  activ_model <- keras_model(inputs=model$inputs, outputs=layer_outputs)
+  return(predict(activ_model, X))
+}
+
+track_homology <- function(model, X, k_opt, eps_opt, max_dim=2) {
+  betti_list <- list()
+  
+  betti <- compute_betti_for_X(X, k_opt, eps_opt, max_dim)
+  betti_list[[length(betti_list)+1]] <- betti
+  
+  activs <- get_layer_activs(model, X)
+  
+  for (i in 1:length(activs)) {
+    activ <- activs[[i]]
+    
+    activ_mat <- matrix(activ, nrow=dim(activ)[1], ncol=prod(dim(activ)[-1]))
+    betti <- compute_betti_for_X(activ_mat, k_opt, eps_opt, max_dim)
+    betti_list[[length(betti_list)+1]] <- betti
+  }
+    
+  betti_mat <- do.call(rbind, betti_list)
+  return(betti_mat)
 }
 ```
 
-```{r}
-#params <- estimate_vr_parameters(X, beta_M, k_vals, eps_vals, max_dim)
-#track_homology(X, beta_M, params$k, params$eps, model)
-```
+```{r eval=FALSE}
+k_vals <- 3:20
+eps_vals <- seq(0.5, 5.5, by=0.5)
 
+X_sub <- X_train[sample(1:nrow(X_train), 100), ] # sample of 500 for homology computations
+
+params <- estimate_vr_parameters(X_sub, beta_M, k_vals, eps_vals, max_dim=2)
+
+betti_sim_tanh <- track_homology(model_sim_tanh, X_sub, params$k, params$eps)
+betti_sim_relu <- track_homology(model_sim_relu, X_sub, params$k, params$eps)
+betti_sim_tanh; betti_sim_relu
+```
 
 
 
 # References
 
-- "Topology of Deep Neural Networks"; Gregory Naitzat
-- \underline{Introduction to Topological Manifolds}; John M. Lee
-- (Zomorodian and Carlsson, 2005)
+- Naitzat, G., Zhitnikov, A., & Lim, L.-H. (2020). *Topology of Deep Neural Networks*. Journal of Machine Learning Research, 21(184), 1-40. 
+- Lee, J. M. (2011). *Introduction to Topological Manifolds* (2nd ed.) Springer.
+- Zoromorodian, A. & Carlsson, G. (2005). Computing Persistent Homology. Discrete & Computational Geometry, 33, 249-274.
 
 
